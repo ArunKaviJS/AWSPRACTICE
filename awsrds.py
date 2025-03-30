@@ -7,12 +7,7 @@ from io import StringIO
 
 # AWS S3 Configuration
 S3_BUCKET = "myawsarunkavi"  # Replace with your S3 bucket name
-S3_MODELS = {
-    "xgb_boost": "xgboost_riskscore_insurance.csv",
-    "model_claim": "logisticforfraud_claim_insuranceclaim.csv",
-    "labencode": "Encoder_riskscore_insurance.csv",
-    "oneh_decoder": "onehendoderforinsurancerisk.csv",
-}
+
 
 
 
@@ -25,10 +20,10 @@ def load_model_from_s3(bucket, file):
     return pd.read_csv(StringIO(con))
 
 # Load models from S3
-xgb_boost = load_model_from_s3(S3_BUCKET, S3_MODELS["xgb_boost"])
-model_claim = load_model_from_s3(S3_BUCKET, S3_MODELS["model_claim"])
-labencode = load_model_from_s3(S3_BUCKET, S3_MODELS["labencode"])
-oneh_decoder = load_model_from_s3(S3_BUCKET, S3_MODELS["oneh_decoder"])
+xgb_boost = load_model_from_s3(S3_BUCKET, "xgboost_riskscore_insurance.csv")
+model_claim = load_model_from_s3(S3_BUCKET, "logisticforfraud_claim_insuranceclaim.csv")
+labencode = load_model_from_s3(S3_BUCKET, "Encoder_riskscore_insurance.csv")
+oneh_decoder = load_model_from_s3(S3_BUCKET, "onehendoderforinsurancerisk.csv")
 
 # Streamlit UI
 tab1, tab2 = st.tabs(["RiskCore", "Claimamount"])
