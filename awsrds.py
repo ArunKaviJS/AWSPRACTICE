@@ -6,7 +6,7 @@ import os
 from io import StringIO
 
 # AWS S3 Configuration
-S3_BUCKET = "your-bucket-name"  # Replace with your S3 bucket name
+S3_BUCKET = "myawsarunkavi"  # Replace with your S3 bucket name
 S3_MODELS = {
     "xgb_boost": "xgboost_riskscore_insurance.csv",
     "model_claim": "logisticforfraud_claim_insuranceclaim.csv",
@@ -14,12 +14,10 @@ S3_MODELS = {
     "oneh_decoder": "onehendoderforinsurancerisk.csv",
 }
 
-# AWS Credentials (Replace with your keys)
-access_key = "your-access-key"
-secret_key = "your-secret-key"
+
 
 # Initialize S3 Client
-s3 = boto3.client("s3", aws_access_key_id=access_key, aws_secret_access_key=secret_key)
+s3 = boto3.client("s3")
 
 def load_model_from_s3(bucket, file):
     response = s3.get_object(Bucket=bucket, Key=file)
