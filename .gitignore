@@ -1,3 +1,8 @@
 venv
 .env
 arun
+xgboost_riskscore_insurance.pkl
+onehendoderforinsurancerisk.pkl
+logisticforfraud_claim_insuranceclaim.pkl
+Encoder_riskscore_insurance
+endoderforinsurancerisk.pkl
