@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import joblib
 import os
-import xgboost
+
 # Load models locally
 xgb_boost = joblib.load("xgboost_riskscore_insurance.pkl")
 model_claim = joblib.load("logisticforfraud_claim_insuranceclaim.pkl")
