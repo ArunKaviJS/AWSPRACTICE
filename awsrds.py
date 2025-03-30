@@ -5,10 +5,10 @@ import joblib
 import os
 
 # Load models locally
-xgb_boost = joblib.load("Models/xgboost_riskscore_insurance.pkl")
-model_claim = joblib.load("Models/logisticforfraud_claim_insuranceclaim.pkl")
-labencode = joblib.load("Models/Encoder_riskscore_insurance.pkl")
-oneh_decoder = joblib.load("Models/onehendoderforinsurancerisk.pkl")
+xgb_boost = joblib.load("xgboost_riskscore_insurance.pkl")
+model_claim = joblib.load("logisticforfraud_claim_insuranceclaim.pkl")
+labencode = joblib.load("Encoder_riskscore_insurance.pkl")
+oneh_decoder = joblib.load("onehendoderforinsurancerisk.pkl")
 
 # Streamlit UI
 tab1, tab2 = st.tabs(["RiskCore", "Claimamount"])
