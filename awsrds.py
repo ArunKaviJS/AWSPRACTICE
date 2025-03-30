@@ -1,29 +1,14 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import boto3
+import joblib
 import os
-from io import StringIO
 
-# AWS S3 Configuration
-S3_BUCKET = "myawsarunkavi"  # Replace with your S3 bucket name
-
-
-
-
-# Initialize S3 Client
-s3 = boto3.client("s3")
-
-def load_model_from_s3(bucket, file):
-    response = s3.get_object(Bucket=bucket, Key=file)
-    con = response['Body'].read().decode('utf-8')
-    return pd.read_csv(StringIO(con))
-
-# Load models from S3
-xgb_boost = load_model_from_s3(S3_BUCKET, "xgboost_riskscore_insurance.csv")
-model_claim = load_model_from_s3(S3_BUCKET, "logisticforfraud_claim_insuranceclaim.csv")
-labencode = load_model_from_s3(S3_BUCKET, "Encoder_riskscore_insurance.csv")
-oneh_decoder = load_model_from_s3(S3_BUCKET, "onehendoderforinsurancerisk.csv")
+# Load models locally
+xgb_boost = joblib.load("Models/xgboost_riskscore_insurance.pkl")
+model_claim = joblib.load("Models/logisticforfraud_claim_insuranceclaim.pkl")
+labencode = joblib.load("Models/Encoder_riskscore_insurance.pkl")
+oneh_decoder = joblib.load("Models/onehendoderforinsurancerisk.pkl")
 
 # Streamlit UI
 tab1, tab2 = st.tabs(["RiskCore", "Claimamount"])
