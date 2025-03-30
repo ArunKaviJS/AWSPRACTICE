@@ -1,37 +1,36 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import joblib
 import boto3
 import os
+from io import StringIO
 
 # AWS S3 Configuration
 S3_BUCKET = "your-bucket-name"  # Replace with your S3 bucket name
 S3_MODELS = {
-    "xgb_boost": "Models/xgboost_riskscore_insurance.pkl",
-    "model_claim": "Models/logisticforfraud_claim_insuranceclaim.pkl",
-    "labencode": "Models/Encoder_riskscore_insurance",
-    "oneh_decoder": "Models/onehendoderforinsurancerisk.pkl",
+    "xgb_boost": "xgboost_riskscore_insurance.csv",
+    "model_claim": "logisticforfraud_claim_insuranceclaim.csv",
+    "labencode": "Encoder_riskscore_insurance.csv",
+    "oneh_decoder": "onehendoderforinsurancerisk.csv",
 }
 
-# Function to download files from S3
-def download_model_from_s3(s3_client, bucket, s3_key, local_path):
-    s3_client.download_file(bucket, s3_key, local_path)
+# AWS Credentials (Replace with your keys)
+access_key = "your-access-key"
+secret_key = "your-secret-key"
 
 # Initialize S3 Client
-s3_client = boto3.client("s3")
+s3 = boto3.client("s3", aws_access_key_id=access_key, aws_secret_access_key=secret_key)
 
-# Download models from S3
-for model_name, s3_key in S3_MODELS.items():
-    local_path = os.path.basename(s3_key)
-    download_model_from_s3(s3_client, S3_BUCKET, s3_key, local_path)
-    S3_MODELS[model_name] = local_path
+def load_model_from_s3(bucket, file):
+    response = s3.get_object(Bucket=bucket, Key=file)
+    con = response['Body'].read().decode('utf-8')
+    return pd.read_csv(StringIO(con))
 
-# Load models
-xgb_boost = joblib.load(S3_MODELS["xgb_boost"])
-model_claim = joblib.load(S3_MODELS["model_claim"])
-labencode = joblib.load(S3_MODELS["labencode"])
-oneh_decoder = joblib.load(S3_MODELS["oneh_decoder"])
+# Load models from S3
+xgb_boost = load_model_from_s3(S3_BUCKET, S3_MODELS["xgb_boost"])
+model_claim = load_model_from_s3(S3_BUCKET, S3_MODELS["model_claim"])
+labencode = load_model_from_s3(S3_BUCKET, S3_MODELS["labencode"])
+oneh_decoder = load_model_from_s3(S3_BUCKET, S3_MODELS["oneh_decoder"])
 
 # Streamlit UI
 tab1, tab2 = st.tabs(["RiskCore", "Claimamount"])
