@@ -5,12 +5,15 @@ import joblib
 import io
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.preprocessing import LabelEncoder, OneHotEncoder
-from sklearn.model_selection import train_test_split, cross_val_score, KFold, StratifiedKFold
-from sklearn.metrics import (accuracy_score, precision_score, recall_score, 
-                            f1_score, confusion_matrix, classification_report, 
-                            roc_curve, auc, r2_score, mean_squared_error, 
-                            mean_absolute_error)
+import os
+from sklearn.preprocessing import LabelEncoder, OneHotEncoder, StandardScaler
+from sklearn.model_selection import train_test_split, cross_val_score, KFold, StratifiedKFold, GridSearchCV
+from sklearn.metrics import (
+    accuracy_score, precision_score, recall_score,
+    f1_score, confusion_matrix, classification_report,
+    roc_curve, auc, r2_score, mean_squared_error,
+    mean_absolute_error
+)
 from sklearn.linear_model import LogisticRegression, LinearRegression, Ridge, Lasso, ElasticNet
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
@@ -19,10 +22,10 @@ from sklearn.naive_bayes import GaussianNB
 from xgboost import XGBClassifier, XGBRegressor
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.pipeline import make_pipeline
-from pandas_profiling import ProfileReport
+from ydata_profiling import ProfileReport
 from streamlit_pandas_profiling import st_profile_report
 
-# Custom CSS for watermark and buttons
+# Custom CSS for watermark and scoped buttons
 watermark_css = """
 <style>
     .watermark {
@@ -34,7 +37,7 @@ watermark_css = """
         opacity: 0.7;
     }
     
-    div.stButton > button {
+    .custom-button > div.stButton > button {
         width: 100%;
         height: 50px;
         font-size: 18px;
@@ -49,7 +52,7 @@ watermark_css = """
         box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.1);
     }
 
-    div.stButton > button:hover {
+    .custom-button > div.stButton > button:hover {
         background: #0047AB;
         color: white;
     }
@@ -58,17 +61,76 @@ watermark_css = """
 """
 st.markdown(watermark_css, unsafe_allow_html=True)
 
+
+st.markdown(
+        """
+        <style>
+            div.stButton > button {
+                width: 100%; /* Full Width Inside Column */
+                height: 50px;
+                font-size: 18px;
+                font-weight: bold;
+                color: #0047AB;  /* Ocean Blue Text */
+                text-align: center;
+                background: white; /* White Background */
+                border: 2px solid #0047AB; /* Blue Border */
+                border-radius: 8px;
+                cursor: pointer;
+                transition: 0.3s;
+                box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.1);
+            }
+
+            div.stButton > button:hover {
+                background: #0047AB; /* Blue Background on Hover */
+                color: white; /* White Text on Hover */
+            }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+#for button backgroun
+st.markdown(
+        """
+        <style>
+            div.stButton > button {
+                width: 100%; /* Full Width Inside Column */
+                height: 50px;
+                font-size: 18px;
+                font-weight: bold;
+                color: #0047AB;  /* Ocean Blue Text */
+                text-align: center;
+                background: white; /* White Background */
+                border: 2px solid #0047AB; /* Blue Border */
+                border-radius: 8px;
+                cursor: pointer;
+                transition: 0.3s;
+                box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.1);
+            }
+
+            div.stButton > button:hover {
+                background: #0047AB; /* Blue Background on Hover */
+                color: white; /* White Text on Hover */
+            }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
 # Initialize session state
-if "page" not in st.session_state:
-    st.session_state["page"] = "Home"
-if "df" not in st.session_state:
-    st.session_state.df = None
-if "best_model" not in st.session_state:
-    st.session_state.best_model = None
-if "best_model_name" not in st.session_state:
-    st.session_state.best_model_name = ""
-if "best_score" not in st.session_state:
-    st.session_state.best_score = -np.inf
+def initialize_session_state():
+    defaults = {
+        "page": "Home",
+        "df": None,
+        "best_model": None,
+        "best_model_name": "",
+        "best_score": -np.inf,
+        "target_type": None
+    }
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
+
+initialize_session_state()
 
 # Navigation function
 def navigate_to(page_name):
@@ -77,12 +139,15 @@ def navigate_to(page_name):
 # Helper functions for EDA
 def suggest_encoding(series):
     unique_count = series.nunique()
-    if unique_count <= 5:
-        return "OneHot Encoding"
-    elif unique_count <= 10:
+    ordered_categories = ['low', 'medium', 'high']  # Customize as needed
+    is_ordinal = any(str(cat).lower() in ordered_categories for cat in series.unique())
+    
+    if is_ordinal:
         return "Label Encoding (Ordinal Encoding)"
+    elif unique_count <= 5:
+        return "OneHot Encoding"
     else:
-        return "Label/Ordinal Encoding"
+        return "Label/Ordinal Encoding (consider domain knowledge)"
 
 def suggest_treatment(df):
     suggestions = []
@@ -106,6 +171,12 @@ def check_scaling_type(df):
         else:
             scaling_recommendations[col] = "No scaling needed"
     return scaling_recommendations
+
+def load_model(file_path):
+    if not os.path.exists(file_path):
+        st.error(f"Model file not found: {file_path}")
+        return None
+    return joblib.load(file_path)
 
 # Home Page
 if st.session_state["page"] == "Home":
@@ -136,17 +207,25 @@ if st.session_state["page"] == "Home":
     
     col1, col2, col3, col4 = st.columns(4)
     with col1:
+        st.markdown('<div class="custom-button">', unsafe_allow_html=True)
         if st.button("📊 Model Selection"):
             navigate_to("Model Selection")
+        st.markdown('</div>', unsafe_allow_html=True)
     with col2:
+        st.markdown('<div class="custom-button">', unsafe_allow_html=True)
         if st.button("👨‍💼 Employee Attrition"):
             navigate_to("Predicting Employee Attrition")
+        st.markdown('</div>', unsafe_allow_html=True)
     with col3:
+        st.markdown('<div class="custom-button">', unsafe_allow_html=True)
         if st.button("⭐ Performance Rating"):
             navigate_to("Performance Rating")
+        st.markdown('</div>', unsafe_allow_html=True)
     with col4:
+        st.markdown('<div class="custom-button">', unsafe_allow_html=True)
         if st.button("🔍 EDA"):
             navigate_to("EDA")
+        st.markdown('</div>', unsafe_allow_html=True)
 
 # EDA Page
 elif st.session_state["page"] == "EDA":
@@ -190,17 +269,18 @@ elif st.session_state["page"] == "EDA":
     uploaded_file = st.file_uploader("Upload your dataset (CSV or Excel)", type=["csv", "xlsx"])
     
     if uploaded_file is not None:
-        try:
-            if uploaded_file.name.endswith('.csv'):
-                df = pd.read_csv(uploaded_file)
-            else:
-                df = pd.read_excel(uploaded_file)
-            
-            st.session_state.df = df
-            st.success("Dataset loaded successfully!")
-            
-        except Exception as e:
-            st.error(f"Error loading file: {str(e)}")
+        with st.spinner("Loading dataset..."):
+            try:
+                if uploaded_file.name.endswith('.csv'):
+                    df = pd.read_csv(uploaded_file)
+                else:
+                    df = pd.read_excel(uploaded_file)
+                
+                st.session_state.df = df
+                st.success("Dataset loaded successfully!")
+                
+            except Exception as e:
+                st.error(f"Error loading file: {str(e)}")
     
     if st.session_state.df is not None:
         df = st.session_state.df
@@ -306,7 +386,7 @@ elif st.session_state["page"] == "EDA":
                 num_cols = df.select_dtypes(include=["int64", "float64"]).columns.tolist()
                 if num_cols:
                     st.write("### 📊 Boxplots of Numerical Columns")
-                    fig, axes = plt.subplots(nrows=len(num_cols) // 3 + 1, ncols=3, figsize=(15, 5 * (len(num_cols) // 3 + 1)))
+                    fig, axes = plt.subplots(nrows=(len(num_cols) // 3) + 1, ncols=3, figsize=(15, 5 * (len(num_cols) // 3 + 1)))
                     axes = axes.flatten()
                     for i, col in enumerate(num_cols):
                         sns.boxplot(x=df[col], ax=axes[i])
@@ -314,6 +394,7 @@ elif st.session_state["page"] == "EDA":
                     for j in range(i + 1, len(axes)):
                         fig.delaxes(axes[j])
                     st.pyplot(fig)
+                    plt.close(fig)
                 else:
                     st.warning("No numerical columns found!")
             
@@ -325,6 +406,7 @@ elif st.session_state["page"] == "EDA":
                     sns.boxplot(x=df[selected_col], ax=ax)
                     ax.set_title(f"Boxplot of {selected_col}")
                     st.pyplot(fig)
+                    plt.close(fig)
                 else:
                     st.warning("No numerical columns found!")
 
@@ -341,7 +423,7 @@ elif st.session_state["page"] == "EDA":
             for col in cat_cols:
                 suggested_encoding = suggest_encoding(df[col])
                 encoding_info = ""
-                if suggested_encoding == "Label/Ordinal Encoding":
+                if suggested_encoding == "Label Encoding (Ordinal Encoding)":
                     encoding_info = "\n📊 **The Feature Has a Natural Order (Ordinal Data)**"
                 elif suggested_encoding == "OneHot Encoding":
                     encoding_info = "\n📊 **No Natural Order (Nominal Data)**"
@@ -363,7 +445,7 @@ elif st.session_state["page"] == "EDA":
                     df_encoded[col] = le.fit_transform(df_encoded[col].astype(str))
                 
                 corr_matrix = df_encoded.corr().abs()
-                upper_triangle = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool)
+                upper_triangle = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
                 high_corr_features = [column for column in upper_triangle.columns if any(upper_triangle[column] > 0.85)]
                 
                 if high_corr_features:
@@ -378,6 +460,7 @@ elif st.session_state["page"] == "EDA":
                     fig, ax = plt.subplots(figsize=(12, 8))
                     sns.heatmap(data=corr_matrix, annot=True, cmap="coolwarm", fmt=".2f", linewidths=0.5, ax=ax)
                     st.pyplot(fig)
+                    plt.close(fig)
                 else:
                     st.warning("No numerical columns for correlation analysis!")
 
@@ -387,11 +470,13 @@ elif st.session_state["page"] == "EDA":
                 fig, ax = plt.subplots()
                 sns.histplot(df[selected_col], bins=20, kde=True, ax=ax)
                 st.pyplot(fig)
+                plt.close(fig)
             else:
                 fig, ax = plt.subplots()
                 sns.countplot(x=df[selected_col], ax=ax)
                 plt.xticks(rotation=45)
                 st.pyplot(fig)
+                plt.close(fig)
 
         if bivariate:
             st.header("Bivariate Analysis Explorer")
@@ -424,13 +509,16 @@ elif st.session_state["page"] == "EDA":
                     sns.countplot(x=df[feature_column], hue=df[target_column], ax=ax)
                 
                 st.pyplot(fig)
+                plt.close(fig)
 
         if multivariate:
             st.header("Multivariate Analysis")
             selected_cols = st.multiselect("Select columns for analysis", df.columns)
             if len(selected_cols) > 1:
-                fig = sns.pairplot(df[selected_cols])
-                st.pyplot(fig)
+                with st.spinner("Generating pairplot..."):
+                    fig = sns.pairplot(df[selected_cols])
+                    st.pyplot(fig)
+                    plt.close()
 
         if feature_selection:
             st.header("Feature Selection")
@@ -448,6 +536,7 @@ elif st.session_state["page"] == "EDA":
                     fig, ax = plt.subplots()
                     sns.countplot(x=df[target_column], ax=ax)
                     st.pyplot(fig)
+                    plt.close(fig)
 
         if feature_scaling:
             scaling_recommendations = check_scaling_type(df)
@@ -457,8 +546,14 @@ elif st.session_state["page"] == "EDA":
 
         if Full_eda:
             st.subheader("Pandas Profiling Report")
-            profile = ProfileReport(df, title="Pandas Profiling Report", explorative=True)
-            st_profile_report(profile)
+            with st.spinner("Generating profiling report..."):
+                if df.shape[0] > 10000:
+                    st.warning("Large dataset detected. Sampling 10,000 rows for faster processing.")
+                    df_sample = df.sample(10000, random_state=42)
+                else:
+                    df_sample = df
+                profile = ProfileReport(df_sample, title="Pandas Profiling Report", explorative=True)
+                st_profile_report(profile)
 
 # Model Selection Page
 elif st.session_state["page"] == "Model Selection":
@@ -505,8 +600,9 @@ elif st.session_state["page"] == "Model Selection":
         target_file = st.file_uploader("Upload your CSV file for target", type=["csv"], key="target")
 
         if features_file and target_file:
-            df_features = pd.read_csv(features_file)
-            df_target = pd.read_csv(target_file)
+            with st.spinner("Loading data..."):
+                df_features = pd.read_csv(features_file)
+                df_target = pd.read_csv(target_file)
 
             # Select target column
             target_column = st.selectbox("Select target column:", df_target.columns)
@@ -549,9 +645,14 @@ elif st.session_state["page"] == "Model Selection":
                     st.warning("Please select only one model type (Classification or Regression).")
                     st.stop()
 
+                # Scale features
+                scaler = StandardScaler()
+                X_scaled = scaler.fit_transform(X)
+
                 # Train-test split
-                X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+                X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
                 st.info(f"Automatically detected target type: {target_type.capitalize()}")
+                st.session_state.target_type = target_type
 
                 # Model selection and evaluation
                 st.session_state.best_model = None
@@ -563,7 +664,7 @@ elif st.session_state["page"] == "Model Selection":
                         "Logistic Regression": LogisticRegression(max_iter=1000),
                         "Decision Tree Classifier": DecisionTreeClassifier(),
                         "Random Forest Classifier": RandomForestClassifier(),
-                        "XGBoost Classifier": XGBClassifier(use_label_encoder=False, eval_metric="logloss"),
+                        "XGBoost Classifier": XGBClassifier(),
                         "Naive Bayes Classifier": GaussianNB(),
                         "SVM Classifier": SVC(probability=True),
                     }
@@ -583,8 +684,9 @@ elif st.session_state["page"] == "Model Selection":
                 for model_name, model in models.items():
                     try:
                         with st.expander(f"Model: {model_name}"):
-                            model.fit(X_train, y_train)
-                            y_pred = model.predict(X_test)
+                            with st.spinner(f"Training {model_name}..."):
+                                model.fit(X_train, y_train)
+                                y_pred = model.predict(X_test)
 
                             if target_type == "classification":
                                 train_score = model.score(X_train, y_train)
@@ -629,6 +731,7 @@ elif st.session_state["page"] == "Model Selection":
                                 ax.set_ylabel('Actual')
                                 ax.set_title('Confusion Matrix')
                                 st.pyplot(fig)
+                                plt.close(fig)
 
                             else:  # Regression
                                 train_score = model.score(X_train, y_train)
@@ -667,6 +770,7 @@ elif st.session_state["page"] == "Model Selection":
                                 ax.set_ylabel('Predicted')
                                 ax.set_title('Actual vs Predicted')
                                 st.pyplot(fig)
+                                plt.close(fig)
 
                             # Update best model
                             current_score = test_score if target_type == "classification" else r2
@@ -676,7 +780,8 @@ elif st.session_state["page"] == "Model Selection":
                                 st.session_state.best_model_name = model_name
 
                     except Exception as e:
-                        st.warning(f"Error with model {model_name}: {e}")
+                        st.error(f"Failed to train {model_name}: {str(e)}")
+                        continue
 
                 # Save the best model
                 if st.session_state.best_model:
@@ -690,33 +795,57 @@ elif st.session_state["page"] == "Model Selection":
         if st.session_state.best_model is not None:
             cv_method = st.selectbox("Choose Cross-Validation Method:", ["K-Fold", "Stratified K-Fold"])
             cv_folds = st.slider("Select number of folds:", 2, 10, 5)
+            scoring_metric = st.selectbox(
+                "Select scoring metric:",
+                ["accuracy", "f1_weighted", "precision_weighted", "recall_weighted"]
+                if st.session_state.target_type == "classification" else
+                ["r2", "neg_mean_squared_error", "neg_mean_absolute_error"]
+            )
             
             if st.button("Run Cross-Validation"):
-                try:
-                    cv = KFold(n_splits=cv_folds) if cv_method == "K-Fold" else StratifiedKFold(n_splits=cv_folds)
-                    scores = cross_val_score(st.session_state.best_model, X, y, cv=cv)
-                    score_std = np.std(scores)
+                with st.spinner("Running cross-validation..."):
+                    try:
+                        cv = KFold(n_splits=cv_folds) if cv_method == "K-Fold" else StratifiedKFold(n_splits=cv_folds)
+                        scores = cross_val_score(st.session_state.best_model, X_scaled, y, cv=cv, scoring=scoring_metric)
+                        score_std = np.std(scores)
 
-                    st.info(f"Cross-Validation Scores: {scores}")
-                    st.success(f"Mean Score: {np.mean(scores) * 100:.2f}%")
-                    st.info(f"Standard Deviation: {score_std * 100:.2f}%")
+                        st.info(f"Cross-Validation Scores: {scores}")
+                        st.success(f"Mean Score: {np.mean(scores) * 100:.2f}%")
+                        st.info(f"Standard Deviation: {score_std * 100:.2f}%")
 
-                    if score_std * 100 < 2:
-                        st.success("Low variance — Model is stable and generalizing well!")
-                    elif score_std * 100 <= 5:
-                        st.warning("Moderate variance — Model might be slightly sensitive to data splits.")
-                    else:
-                        st.error("High variance — Model might be unstable. Consider tuning or regularization.")
-                except Exception as e:
-                    st.error(f"Error during cross-validation: {e}")
+                        if score_std * 100 < 2:
+                            st.success("Low variance — Model is stable and generalizing well!")
+                        elif score_std * 100 <= 5:
+                            st.warning("Moderate variance — Model might be slightly sensitive to data splits.")
+                        else:
+                            st.error("High variance — Model might be unstable. Consider tuning or regularization.")
+                    except Exception as e:
+                        st.error(f"Error during cross-validation: {str(e)}")
         else:
             st.warning("Please train models first in the 'Model Training & Evaluation' tab")
 
     with tab3:
         st.header("Hyperparameter Tuning")
         if st.session_state.best_model is not None:
-            st.warning("Hyperparameter tuning implementation would go here")
-            st.write("This would include GridSearchCV, RandomizedSearchCV, etc.")
+            model_name = st.session_state.best_model_name
+            st.write(f"Tuning {model_name}")
+            
+            if "Random Forest" in model_name:
+                param_grid = {
+                    'n_estimators': [50, 100, 200],
+                    'max_depth': [None, 10, 20],
+                    'min_samples_split': [2, 5]
+                }
+                grid_search = GridSearchCV(st.session_state.best_model, param_grid, cv=3, n_jobs=-1)
+                if st.button("Run Grid Search"):
+                    with st.spinner("Running grid search..."):
+                        grid_search.fit(X_scaled, y)
+                        st.success(f"Best parameters: {grid_search.best_params_}")
+                        st.session_state.best_model = grid_search.best_estimator_
+                        st.session_state.best_score = grid_search.best_score_
+                        st.write(f"Updated best score: {st.session_state.best_score * 100:.2f}%")
+            else:
+                st.info("Tuning not implemented for this model yet.")
         else:
             st.warning("Please train models first in the 'Model Training & Evaluation' tab")
 
@@ -757,29 +886,36 @@ elif st.session_state["page"] == "Performance Rating":
             navigate_to("Home")
     
     try:
-        # Load models (replace with your actual paths)
-        ohe_for_job_sat = joblib.load(r'..\Models\onehotforjobsat.pkl')
-        label_for_job_sat = joblib.load(r'..\Models\labelforjobsat.pkl')
-        logistic_model = joblib.load(r'..\Models\logistic_for_performance_rating.pkl')
+        # Load models
+        # model_dir = os.path.join(os.path.dirname(__file__), 'Models')  # Adjust path as needed
+        # ohe_for_job_sat = load_model(os.path.join(model_dir, 'onehotforjobsat.pkl'))
+        # label_for_job_sat = load_model(os.path.join(model_dir, 'labelforjobsat.pkl'))
+        # logistic_model = load_model(os.path.join(model_dir, 'logistic_for_performance_rating.pkl'))
+        ohe_for_job_sat = joblib.load('onehotforjobsat.pkl')
+        label_for_job_sat = joblib.load('labelforjobsat.pkl')
+        logistic_model = joblib.load('logistic_for_performance_rating.pkl')
         
+        if None in [ohe_for_job_sat, label_for_job_sat, logistic_model]:
+            raise FileNotFoundError("One or more model files could not be loaded.")
+
         # Input Form
         with st.form("perf_form"):
             col1, col2 = st.columns(2)
 
             with col1:
                 Age = st.number_input("Age", min_value=18, max_value=60, step=1)
-                DistanceFromHome = st.number_input("Distance from Home", step=1)
+                DistanceFromHome = st.number_input("Distance from Home", min_value=0, step=1)
                 Education = st.selectbox("Education Level", [1, 2, 3, 4, 5])
                 EnvironmentSatisfaction = st.slider("Environment Satisfaction", 1, 4)
                 JobInvolvement = st.slider("Job Involvement", 1, 4)
-                MonthlyIncome = st.number_input("Monthly Income", step=100)
-                MonthlyRate = st.number_input("Monthly Rate", step=100)
+                MonthlyIncome = st.number_input("Monthly Income", min_value=0, step=100)
+                MonthlyRate = st.number_input("Monthly Rate", min_value=0, step=100)
 
             with col2:
                 PercentSalaryHike = st.slider("Percent Salary Hike", 0, 100)
                 RelationshipSatisfaction = st.slider("Relationship Satisfaction", 1, 4)
                 WorkLifeBalance = st.slider("Work-Life Balance", 1, 4)
-                YearsInCurrentRole = st.number_input("Years in Current Role", step=1)
+                YearsInCurrentRole = st.number_input("Years in Current Role", min_value=0, step=1)
                 OverTime = st.selectbox("OverTime", ["Yes", "No"])
                 
                 # Categorical inputs
@@ -795,66 +931,87 @@ elif st.session_state["page"] == "Performance Rating":
             submitted = st.form_submit_button("Predict")
 
         if submitted:
-            # Numerical inputs
-            numerical_inputs = [
-                Age,
-                DistanceFromHome,
-                Education,
-                EnvironmentSatisfaction,
-                JobInvolvement,
-                MonthlyIncome,
-                MonthlyRate,
-                PercentSalaryHike,
-                RelationshipSatisfaction,
-                WorkLifeBalance,
-                YearsInCurrentRole,
-                label_for_job_sat.transform([[OverTime]])[0],
-            ]
+            # Input validation
+            if any([
+                Age < 18 or Age > 60,
+                DistanceFromHome < 0,
+                MonthlyIncome < 0,
+                MonthlyRate < 0,
+                YearsInCurrentRole < 0,
+            ]):
+                st.error("Invalid input values. Please check your inputs (e.g., no negative values, age between 18-60).")
+            else:
+                with st.spinner("Making prediction..."):
+                    # Numerical inputs
+                    numerical_inputs = [
+                        Age,
+                        DistanceFromHome,
+                        Education,
+                        EnvironmentSatisfaction,
+                        JobInvolvement,
+                        MonthlyIncome,
+                        MonthlyRate,
+                        PercentSalaryHike,
+                        RelationshipSatisfaction,
+                        WorkLifeBalance,
+                        YearsInCurrentRole,
+                        label_for_job_sat.transform([[OverTime]])[0],
+                    ]
 
-            # Categorical inputs
-            cat_input = pd.DataFrame([{
-                "BusinessTravel": BusinessTravel,
-                "Department": Department,
-                "EducationField": EducationField,
-                "Gender": Gender,
-                "JobRole": JobRole,
-                "MaritalStatus": MaritalStatus
-            }])
+                    # Categorical inputs
+                    cat_input = pd.DataFrame([{
+                        "BusinessTravel": BusinessTravel,
+                        "Department": Department,
+                        "EducationField": EducationField,
+                        "Gender": Gender,
+                        "JobRole": JobRole,
+                        "MaritalStatus": MaritalStatus
+                    }])
 
-            cat_encoded = ohe_for_job_sat.transform(cat_input)
+                    cat_encoded = ohe_for_job_sat.transform(cat_input)
 
-            # Final input
-            final_input = np.concatenate([np.array(numerical_inputs).reshape(1, -1), cat_encoded], axis=1)
+                    # Final input
+                    final_input = np.concatenate([np.array(numerical_inputs).reshape(1, -1), cat_encoded], axis=1)
 
-            prediction = logistic_model.predict(final_input)[0]
+                    prediction = logistic_model.predict(final_input)[0]
 
-            # Map prediction to label
-            rating_label = {
-                3: "Excellent (Exceeds Expectations)",
-                4: "Outstanding (Top Performer)"
-            }.get(prediction, "Unknown")
+                    # Map prediction to label
+                    rating_label = {
+                        3: "Excellent (Exceeds Expectations)",
+                        4: "Outstanding (Top Performer)"
+                    }.get(prediction, "Unknown")
 
-            # Set background gradient by rating
-            bg_gradient = "linear-gradient(to right, #3A7BD5, #00d2ff);" if prediction == 3 else "linear-gradient(to right, #8E2DE2, #4A00E0);"
+                    # Set background gradient by rating
+                    bg_gradient = "linear-gradient(to right, #3A7BD5, #00d2ff);" if prediction == 3 else "linear-gradient(to right, #8E2DE2, #4A00E0);"
 
-            # Styled block with CSS
-            st.markdown(f"""
-                <div style="
-                    padding: 1.5rem;
-                    border-radius: 15px;
-                    background: {bg_gradient};
-                    color: white;
-                    text-align: center;
-                    font-size: 22px;
-                    font-weight: bold;
-                    margin-top: 20px;
-                    box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.15);
-                ">
-                    Predicted Performance Rating: {prediction} - {rating_label}
-                </div>
-            """, unsafe_allow_html=True)
+                    # Styled block with CSS
+                    st.markdown(f"""
+                        <div style="
+                            padding: 1.5rem;
+                            border-radius: 15px;
+                            background: {bg_gradient};
+                            color: white;
+                            text-align: center;
+                            font-size: 22px;
+                            font-weight: bold;
+                            margin-top: 20px;
+                            box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.15);
+                        ">
+                            Predicted Performance Rating: {prediction} - {rating_label}
+                        </div>
+                    """, unsafe_allow_html=True)
             
     except Exception as e:
-        st.error(f"Error loading models: {str(e)}")
-        st.info("Please ensure the model files are in the correct location")
+        st.error(f"Error in performance rating prediction: {str(e)}")
 
+# Placeholder for Employee Attrition Page
+elif st.session_state["page"] == "Predicting Employee Attrition":
+    st.title("Predicting Employee Attrition")
+    st.write("This feature is not implemented yet.")
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("🔙 Back"):
+            navigate_to("Home")
+    with col2:
+        if st.button("🏠 Home"):
+            navigate_to("Home")
