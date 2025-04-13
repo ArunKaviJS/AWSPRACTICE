@@ -25,6 +25,7 @@ from sklearn.pipeline import make_pipeline
 from ydata_profiling import ProfileReport
 from streamlit_pandas_profiling import st_profile_report
 
+st.set_page_config(layout="wide")
 # Custom CSS for watermark and scoped buttons
 watermark_css = """
 <style>
@@ -172,11 +173,6 @@ def check_scaling_type(df):
             scaling_recommendations[col] = "No scaling needed"
     return scaling_recommendations
 
-def load_model(file_path):
-    if not os.path.exists(file_path):
-        st.error(f"Model file not found: {file_path}")
-        return None
-    return joblib.load(file_path)
 
 # Home Page
 if st.session_state["page"] == "Home":
@@ -212,7 +208,7 @@ if st.session_state["page"] == "Home":
             use_container_width=True,
         )
         st.markdown('<div class="custom-button">', unsafe_allow_html=True)
-        if st.button("📊 Model Selection"):
+        if st.button("Model Selection"):
             navigate_to("Model Selection")
         st.markdown('</div>', unsafe_allow_html=True)
     
@@ -223,7 +219,7 @@ if st.session_state["page"] == "Home":
             use_container_width=True,
         )
 
-        if st.button("⭐ Performance Rating"):
+        if st.button("Performance Rating"):
             navigate_to("Performance Rating")
         st.markdown('</div>', unsafe_allow_html=True)
     with col1:
@@ -234,7 +230,7 @@ if st.session_state["page"] == "Home":
                 use_container_width=True,
             )
         
-        if st.button("🔍 EDA"):
+        if st.button("EDA"):
             navigate_to("EDA")
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -897,11 +893,7 @@ elif st.session_state["page"] == "Performance Rating":
             navigate_to("Home")
     
     try:
-        # Load models
-        # model_dir = os.path.join(os.path.dirname(__file__), 'Models')  # Adjust path as needed
-        # ohe_for_job_sat = load_model(os.path.join(model_dir, 'onehotforjobsat.pkl'))
-        # label_for_job_sat = load_model(os.path.join(model_dir, 'labelforjobsat.pkl'))
-        # logistic_model = load_model(os.path.join(model_dir, 'logistic_for_performance_rating.pkl'))
+        
         ohe_for_job_sat = joblib.load('onehotforjobsat.pkl')
         label_for_job_sat = joblib.load('labelforjobsat.pkl')
         logistic_model = joblib.load('logistic_for_performance_rating.pkl')
