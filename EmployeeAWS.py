@@ -199,39 +199,52 @@ if st.session_state["page"] == "Home":
         unsafe_allow_html=True
     )
     
-    col1, col2, col3,= st.columns(3)
-    with col2:
-        st.image(
-            r"https://cdn-icons-png.flaticon.com/512/1118/1118881.png",
-            use_container_width=True,
-        )
-        st.markdown('<div class="custom-button">', unsafe_allow_html=True)
-        if st.button("Model Selection"):
-            navigate_to("Model Selection")
-        st.markdown('</div>', unsafe_allow_html=True)
-    
-    with col3:
-        st.markdown('<div class="custom-button">', unsafe_allow_html=True)
-        st.image(
-            r"https://icon-library.com/images/ratings-icon/ratings-icon-5.jpg",
-            use_container_width=True,
-        )
+    col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
 
-        if st.button("Performance Rating"):
-            navigate_to("Performance Rating")
-        st.markdown('</div>', unsafe_allow_html=True)
+# Column 1 – EDA
     with col1:
-
         st.markdown('<div class="custom-button">', unsafe_allow_html=True)
         st.image(
-                r"https://cdn-icons-png.flaticon.com/512/2998/2998250.png",
-                use_container_width=True,
-            )
-        
+        "https://cdn-icons-png.flaticon.com/512/2998/2998250.png",
+        use_container_width=True
+        )
         if st.button("EDA"):
             navigate_to("EDA")
         st.markdown('</div>', unsafe_allow_html=True)
 
+# Column 2 – Model Selection
+    with col2:
+        st.markdown('<div class="custom-button">', unsafe_allow_html=True)
+        st.image(
+        "https://cdn-icons-png.flaticon.com/512/1118/1118881.png",
+        use_container_width=True
+        )
+        if st.button("Model Selection"):
+            navigate_to("Model Selection")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+# Column 3 – Prediction
+    with col3:
+        st.markdown('<div class="custom-button">', unsafe_allow_html=True)
+        st.image(
+        "https://cdn-icons-png.flaticon.com/512/8752/8752651.png",
+        use_container_width=True
+        )
+        if st.button("Predicting Employee Attrition"):
+            navigate_to("Predicting Employee Attrition")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+# Column 4 – Performance Rating
+    with col4:
+        st.markdown('<div class="custom-button">', unsafe_allow_html=True)
+        st.image(
+        "https://icon-library.com/images/ratings-icon/ratings-icon-5.jpg",
+        use_container_width=True
+        )
+        if st.button("Performance Rating"):
+            navigate_to("Performance Rating")
+        st.markdown('</div>', unsafe_allow_html=True)
+        
 # EDA Page
 elif st.session_state["page"] == "EDA":
     st.markdown(
@@ -880,7 +893,7 @@ elif st.session_state["page"] == "Performance Rating":
         unsafe_allow_html=True
     )
 
-    st.markdown("<h4 style='text-align: center;'>Predict employee performance rating</h4>", unsafe_allow_html=True)
+
     
     col3, col4 = st.columns(2)
     with col3:
@@ -911,6 +924,10 @@ elif st.session_state["page"] == "Performance Rating":
                 JobInvolvement = st.slider("Job Involvement", 1, 4)
                 MonthlyIncome = st.number_input("Monthly Income", min_value=0, step=100)
                 MonthlyRate = st.number_input("Monthly Rate", min_value=0, step=100)
+                JobRole = st.selectbox("Job Role", ["Sales Executive", "Research Scientist", "Laboratory Technician", "Manufacturing Director", 
+                                            "Healthcare Representative", "Manager", "Sales Representative", 
+                                            "Research Director", "Human Resources"])
+                MaritalStatus = st.selectbox("Marital Status", ["Single", "Married", "Divorced"])
 
             with col2:
                 PercentSalaryHike = st.slider("Percent Salary Hike", 0, 100)
@@ -924,10 +941,7 @@ elif st.session_state["page"] == "Performance Rating":
                 Department = st.selectbox("Department", ["Sales", "Research & Development", "Human Resources"])
                 EducationField = st.selectbox("Education Field", ["Life Sciences", "Medical", "Marketing", "Technical Degree", "Human Resources", "Other"])
                 Gender = st.selectbox("Gender", ["Male", "Female"])
-                JobRole = st.selectbox("Job Role", ["Sales Executive", "Research Scientist", "Laboratory Technician", "Manufacturing Director", 
-                                            "Healthcare Representative", "Manager", "Sales Representative", 
-                                            "Research Director", "Human Resources"])
-                MaritalStatus = st.selectbox("Marital Status", ["Single", "Married", "Divorced"])
+               
 
             submitted = st.form_submit_button("Predict")
 
@@ -1005,14 +1019,104 @@ elif st.session_state["page"] == "Performance Rating":
     except Exception as e:
         st.error(f"Error in performance rating prediction: {str(e)}")
 
-# Placeholder for Employee Attrition Page
 elif st.session_state["page"] == "Predicting Employee Attrition":
-    st.title("Predicting Employee Attrition")
-    st.write("This feature is not implemented yet.")
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("🔙 Back"):
-            navigate_to("Home")
-    with col2:
-        if st.button("🏠 Home"):
-            navigate_to("Home")
+        st.markdown(
+    """
+    <style>
+        .eda-title {
+            text-align: center;
+            font-size: 36px;
+            font-weight: bold;
+            text-transform: uppercase;
+            white-space: nowrap; /* Ensures it's always on one line */
+            overflow: hidden;
+            text-overflow: ellipsis;
+            position: relative;
+            top: -10px; /* Moves text slightly up */
+            letter-spacing: 1px;
+            background: linear-gradient(to right, #0047AB, #007BFF); /* Ocean Blue Gradient */
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+    </style>
+    <div class='eda-title'>Predicting Employee Attrition</div>
+    """,
+    unsafe_allow_html=True
+)
+
+        st.markdown(
+    "<h4 style='text-align: center;'>Predict whether an employee will leave the company (attrition).</h4>",
+    unsafe_allow_html=True
+)
+
+        col3,col4=st.columns(2)
+        with col3:
+            if st.button("🔙 Back", use_container_width=True):
+                navigate_to("Home")
+        with col4:
+            if st.button("🏠 Home", use_container_width=True):
+                navigate_to("Home")
+
+
+        # Load the trained models
+        decisionforemployeeattri = joblib.load('decisionforemployeeattri.pkl')
+        ohe_for_emp_att = joblib.load('onehotencoderforemp_attri.pkl')
+        le_for_emp_att = joblib.load('labelforemployeeattri.pkl')
+
+        
+
+        st.header("Enter Employee Details")
+
+# User input fields
+        # First row
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            age = st.number_input("Age", min_value=18, max_value=65, step=1)
+        with col2:
+            handled_MonthlyIncome = st.number_input("Monthly Income", min_value=1000, step=500)
+        with col3:
+                JobSatisfaction = st.slider("Job Satisfaction", min_value=1, max_value=5, step=1)
+
+# Second row
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            YearsAtCompany = st.number_input("Years at Company", min_value=0, step=1)
+        with col2:
+            overtime = st.selectbox("Overtime", ['Yes', 'No'])
+            
+        with col3:
+            NumCompaniesWorked = st.number_input("Number of Companies Worked", min_value=0, step=1)
+
+# Third row (Categorical)
+        col1, col2 = st.columns(2)
+        with col1:
+            Department = st.selectbox("Department", ['Sales', 'HR', 'Research & Development'])
+        with col2:
+            MaritalStatus = st.selectbox("Marital Status", ['Single', 'Married', 'Divorced'])
+
+
+# Convert to DataFrame
+        le_ot = le_for_emp_att.transform(np.array([overtime]).reshape(1, -1)).flatten()[0]  
+        user_data = pd.DataFrame({'Department': [Department], 'MaritalStatus': [MaritalStatus]})
+        encoded_user_input = ohe_for_emp_att.transform(user_data)
+
+# Convert numerical inputs to NumPy array
+        num_inputs = np.array([age, handled_MonthlyIncome, JobSatisfaction, YearsAtCompany, le_ot, NumCompaniesWorked]).reshape(1, -1)
+
+# Concatenate numerical and categorical features
+        combined_input = np.concatenate([num_inputs, encoded_user_input], axis=1)
+
+# Prediction
+        if st.button("Predict Attrition"):
+            employee_attrition = decisionforemployeeattri.predict(combined_input)[0]
+            
+            prediction_text = "Likely to Leave" if employee_attrition == 'Yes' else "Likely to Stay"
+            color = "green" if employee_attrition == 'No' else "red"
+            st.markdown(f"### <span style='color:{color};'>Employee Attrition Prediction: {prediction_text}</span>", unsafe_allow_html=True)
+    
+    # Visualization
+            st.subheader("Employee Attributes")
+            st.bar_chart(pd.DataFrame({
+                "Feature": ["Age", "Monthly Income", "Job Satisfaction", "Years at Company", "Overtime", "Companies Worked"],
+                "Value": [age, handled_MonthlyIncome, JobSatisfaction, YearsAtCompany, le_ot, NumCompaniesWorked]
+            }).set_index("Feature"))
