@@ -205,24 +205,35 @@ if st.session_state["page"] == "Home":
         unsafe_allow_html=True
     )
     
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
+    col1, col2, col3,= st.columns(3)
+    with col2:
+        st.image(
+            r"https://cdn-icons-png.flaticon.com/512/1118/1118881.png",
+            use_container_width=True,
+        )
         st.markdown('<div class="custom-button">', unsafe_allow_html=True)
         if st.button("📊 Model Selection"):
             navigate_to("Model Selection")
         st.markdown('</div>', unsafe_allow_html=True)
-    with col2:
-        st.markdown('<div class="custom-button">', unsafe_allow_html=True)
-        if st.button("👨‍💼 Employee Attrition"):
-            navigate_to("Predicting Employee Attrition")
-        st.markdown('</div>', unsafe_allow_html=True)
+    
     with col3:
         st.markdown('<div class="custom-button">', unsafe_allow_html=True)
+        st.image(
+            r"https://icon-library.com/images/ratings-icon/ratings-icon-5.jpg",
+            use_container_width=True,
+        )
+
         if st.button("⭐ Performance Rating"):
             navigate_to("Performance Rating")
         st.markdown('</div>', unsafe_allow_html=True)
-    with col4:
+    with col1:
+
         st.markdown('<div class="custom-button">', unsafe_allow_html=True)
+        st.image(
+                r"https://cdn-icons-png.flaticon.com/512/2998/2998250.png",
+                use_container_width=True,
+            )
+        
         if st.button("🔍 EDA"):
             navigate_to("EDA")
         st.markdown('</div>', unsafe_allow_html=True)
