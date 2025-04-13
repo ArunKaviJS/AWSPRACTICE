@@ -22,8 +22,6 @@ from sklearn.naive_bayes import GaussianNB
 from xgboost import XGBClassifier, XGBRegressor
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.pipeline import make_pipeline
-from ydata_profiling import ProfileReport
-from streamlit_pandas_profiling import st_profile_report
 
 st.set_page_config(layout="wide")
 # Custom CSS for watermark and scoped buttons
@@ -551,16 +549,16 @@ elif st.session_state["page"] == "EDA":
             for feature, scale_type in scaling_recommendations.items():
                 st.write(f"{feature}: {scale_type}")
 
-        if Full_eda:
-            st.subheader("Pandas Profiling Report")
-            with st.spinner("Generating profiling report..."):
-                if df.shape[0] > 10000:
-                    st.warning("Large dataset detected. Sampling 10,000 rows for faster processing.")
-                    df_sample = df.sample(10000, random_state=42)
-                else:
-                    df_sample = df
-                profile = ProfileReport(df_sample, title="Pandas Profiling Report", explorative=True)
-                st_profile_report(profile)
+        # if Full_eda:
+        #     st.subheader("Pandas Profiling Report")
+        #     with st.spinner("Generating profiling report..."):
+        #         if df.shape[0] > 10000:
+        #             st.warning("Large dataset detected. Sampling 10,000 rows for faster processing.")
+        #             df_sample = df.sample(10000, random_state=42)
+        #         else:
+        #             df_sample = df
+        #         profile = ProfileReport(df_sample, title="Pandas Profiling Report", explorative=True)
+        #         st_profile_report(profile)
 
 # Model Selection Page
 elif st.session_state["page"] == "Model Selection":
