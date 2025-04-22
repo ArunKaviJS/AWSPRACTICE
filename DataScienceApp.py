@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import zipfile
-import pymysql
+
 import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
@@ -270,19 +270,7 @@ with st.sidebar:
                 st.error(f"Error loading file: {e}")
                 return None
 
-        def fetch_data_from_mysql(host, user, password, database, query):
-            try:
-                conn = pymysql.connect(host=host, user=user, password=password, database=database)
-                st.write('Connected Successfully')
-                df = pd.read_sql(query, conn)
-                conn.close()
-                return df
-            except pymysql.Error as err:
-                st.error(f"MySQL Error: {err}")
-                return None
-            except Exception as e:
-                st.error(f"Error fetching data: {e}")
-                return None
+        
 
         # Initialize session state for df
         if "df" not in st.session_state:
@@ -325,21 +313,7 @@ with st.sidebar:
                             dataframes.append(df)
                             st.success(f"Loaded: {file.name}")
 
-        if db_source:
-            st.subheader("MySQL Database Connection")
-            host = st.text_input("Host", value="localhost")
-            user = st.text_input("User", value="root")
-            password = st.text_input("Password", type="password")
-            database = st.text_input("Database Name")
-            query = st.text_area("SQL Query")
-            if st.button("Fetch Data"):
-                if host and user and password and database and query:
-                    df = fetch_data_from_mysql(host, user, password, database, query)
-                    if df is not None:
-                        dataframes.append(df)
-                        st.success("Data fetched from database.")
-                else:
-                    st.error("Provide all database details and query.")
+       
 
         if dataframes:
             st.session_state.df = pd.concat(dataframes, ignore_index=True)
