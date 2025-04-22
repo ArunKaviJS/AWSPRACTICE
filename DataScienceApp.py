@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import zipfile
-
+import pymysql
 import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
@@ -18,12 +18,12 @@ from scipy.stats.mstats import winsorize
 import category_encoders as ce
 from sklearn.feature_selection import VarianceThreshold
 from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_score, GridSearchCV, RandomizedSearchCV,KFold, learning_curve, validation_curve
-
+from lime.lime_tabular import LimeTabularExplainer
 from sklearn.naive_bayes import GaussianNB
 from sklearn.svm import SVC
 from xgboost import XGBClassifier
 from skopt import BayesSearchCV
-from sklearn.preprocessing import LabelEncoder, OneHotEncoder, StandardScaler, MinMaxScaler
+from sklearn.preprocessing import LabelEncoder, OneHotEncoder, StandardScaler, MinMaxScaler,label_binarize
 import joblib
 from sklearn.metrics import (
     precision_score, recall_score, f1_score,
@@ -38,8 +38,10 @@ from sklearn.preprocessing import PolynomialFeatures
 from sklearn.svm import SVR, SVC
 from xgboost import XGBClassifier, XGBRegressor
 import os
+from itertools import cycle
 import statsmodels.api as sm
 from statsmodels.stats.outliers_influence import variance_inflation_factor
+from pandas.api.types import is_object_dtype, is_numeric_dtype
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)  # Common in pandas/sklearn
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -270,7 +272,19 @@ with st.sidebar:
                 st.error(f"Error loading file: {e}")
                 return None
 
-        
+        def fetch_data_from_mysql(host, user, password, database, query):
+            try:
+                conn = pymysql.connect(host=host, user=user, password=password, database=database)
+                st.write('Connected Successfully')
+                df = pd.read_sql(query, conn)
+                conn.close()
+                return df
+            except pymysql.Error as err:
+                st.error(f"MySQL Error: {err}")
+                return None
+            except Exception as e:
+                st.error(f"Error fetching data: {e}")
+                return None
 
         # Initialize session state for df
         if "df" not in st.session_state:
@@ -313,7 +327,21 @@ with st.sidebar:
                             dataframes.append(df)
                             st.success(f"Loaded: {file.name}")
 
-       
+        if db_source:
+            st.subheader("MySQL Database Connection")
+            host = st.text_input("Host", value="localhost")
+            user = st.text_input("User", value="root")
+            password = st.text_input("Password", type="password")
+            database = st.text_input("Database Name")
+            query = st.text_area("SQL Query")
+            if st.button("Fetch Data"):
+                if host and user and password and database and query:
+                    df = fetch_data_from_mysql(host, user, password, database, query)
+                    if df is not None:
+                        dataframes.append(df)
+                        st.success("Data fetched from database.")
+                else:
+                    st.error("Provide all database details and query.")
 
         if dataframes:
             st.session_state.df = pd.concat(dataframes, ignore_index=True)
@@ -413,21 +441,179 @@ elif st.session_state.page == "About":
             navigate_to("Home")
     st.markdown("---")
 
-    
-    st.markdown("""
-    
-    <ul>
-        <li><b>📥 Data Collection</b>: Upload your dataset using the sidebar to get started</li>
-        <li><b>📊 EDA (Exploratory Data Analysis)</b>: Generate automated reports to understand your data</li>
-        <li><b>⚙️ Preprocessing</b>: Clean and prepare your data for modeling</li>
-        <li><b>🎯 Feature Selection</b>: Identify the most important features for your model</li>
-        <li><b>🔁 Cross-Validation</b>: Evaluate model stability using robust validation techniques</li>
-        <li><b>🧠 Model Selection</b>: Compare multiple machine learning models to find the best fit</li>
-        <li><b>🔮 Prediction</b>: Build and evaluate the final model to make accurate predictions</li>
+    with st.expander("📊 EXPLORATORY DATA ANALYSIS (EDA)", expanded=True):
+        st.markdown("""
+        **Core Functionality:** Understand your dataset's structure, patterns, and anomalies
+        
+        **Technical Components:**
+        - **Data Preview**: Displays first/last rows with `df.head()`/`df.tail()`
+        - **Dataset Information**: Uses `df.info()` to show data types and memory usage
+        - **Describe**: Generates statistics with `df.describe()` (count, mean, std, min/max, quartiles)
+        
+        **Advanced Analysis Tools:**
+        """)
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("""
+            **📈 Univariate Analysis:**
+            - Histograms (continuous data)
+            - Boxplots (outlier detection)
+            - Shapiro-Wilk test (`shapiro()`) for normality
+            - Count plots (categorical frequencies)
+            """)
+        
+        with col2:
+            st.markdown("""
+            **🔄 Bivariate Analysis:**
+            - Scatter plots (numerical-numerical)
+            - Boxplots (numerical-categorical)
+            - Cross-tabulations (categorical-categorical)
+            - Pearson/Spearman correlation
+            """)
+        
+        st.markdown("""
+        **Automated EDA Features:**
+        - `ydata_profiling.ProfileReport()` generates comprehensive reports including:
+          - Missing values heatmap
+          - Correlation matrices
+          - Variable interaction plots
+          - Alerts for high cardinality/duplicates
+        """)
 
-    </ul>
-    <p>Upload your dataset using the sidebar and start exploring!</p>
+    with st.expander("⚙️ DATA PREPROCESSING", expanded=False):
+        st.markdown("""
+        **Null Value Handling:**
+        - Automatic detection with `df.isnull().sum()`
+        - Imputation methods:
+          - Mean/Median (`sklearn.impute.SimpleImputer`)
+          - Mode for categorical
+          - Custom value input
+        
+        **Outlier Treatment:**
+        - IQR method: `Q1 - 1.5*IQR` to `Q3 + 1.5*IQR`
+        - Z-score method: `scipy.stats.zscore` > 3
+        - Winsorization: `scipy.stats.mstats.winsorize`
+        
+        **Encoding Techniques:**
+        - Label Encoding (`sklearn.preprocessing.LabelEncoder`)
+        - One-Hot Encoding (`pd.get_dummies()`)
+        - Target Encoding (`category_encoders.TargetEncoder`)
+        - Binary Encoding (`category_encoders.BinaryEncoder`)
+        
+        **Feature Scaling:**
+        - Standardization: `StandardScaler()` (mean=0, std=1)
+        - Normalization: `MinMaxScaler()` (range 0-1)
+        - Robust Scaling (`RobustScaler` for outlier-resistant)
+        """)
+
+    with st.expander("🎯 FEATURE SELECTION", expanded=False):
+        st.markdown("""
+        **Filter Methods:**
+        - Chi-square (`sklearn.feature_selection.chi2`)
+        - ANOVA F-value (`f_classif`/`f_regression`)
+        - Mutual Information (`mutual_info_classif`/`mutual_info_regression`)
+        
+        **Wrapper Methods:**
+        - Recursive Feature Elimination (`RFE`)
+        - Sequential Feature Selection (`SequentialFeatureSelector`)
+        
+        **Embedded Methods:**
+        - Random Forest feature importance
+        - L1 regularization (Lasso)
+        
+        **Advanced Tools:**
+        - Variance Threshold (`VarianceThreshold`)
+        - Correlation analysis (`df.corr()`)
+        - VIF for multicollinearity (`variance_inflation_factor`)
+        """)
+
+    with st.expander("🤖 MODEL SELECTION", expanded=False):
+        st.markdown("""
+        **Classification Models:**
+        - Logistic Regression (`LogisticRegression`)
+        - Decision Trees (`DecisionTreeClassifier`)
+        - Random Forest (`RandomForestClassifier`)
+        - XGBoost (`XGBClassifier`)
+        - SVM (`SVC`)
+        
+        **Regression Models:**
+        - Linear Regression (`LinearRegression`)
+        - Polynomial Regression (`PolynomialFeatures` + `LinearRegression`)
+        - Ridge/Lasso (`Ridge`/`Lasso`)
+        - XGBoost Regressor (`XGBRegressor`)
+        
+        **Model Evaluation:**
+        - Classification Reports (`classification_report`)
+        - Confusion Matrices (`confusion_matrix`)
+        - ROC Curves (`roc_curve`, `auc`)
+        - R², MAE, RMSE for regression
+        
+        **Hyperparameter Tuning:**
+        - GridSearchCV (exhaustive search)
+        - RandomizedSearchCV (random sampling)
+        - Bayesian Optimization (`BayesSearchCV`)
+        """)
+
+    with st.expander("🔮 PREDICTION", expanded=False):
+        st.markdown("""
+        **Prediction Pipeline:**
+        1. Load trained model (`joblib.load()`)
+        2. Preprocess new data (same as training)
+        3. Generate predictions (`model.predict()`)
+        4. Output probabilities (`model.predict_proba()`)
+        
+        **Supported Outputs:**
+        - Class labels (classification)
+        - Continuous values (regression)
+        - Confidence scores
+        - SHAP/LIME explanations
+        
+        **Model Persistence:**
+        - Save/load models with `joblib.dump()`/`joblib.load()`
+        - Export prediction results to CSV/Excel
+        """)
+
+    st.markdown("""
+    <style>
+        .eda-title {
+            text-align: center;
+            font-size: 36px;
+            font-weight: bold;
+            text-transform: uppercase;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            position: relative;
+            top: -10px;
+            letter-spacing: 1px;
+            background: linear-gradient(to right, #0047AB, #007BFF);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        [data-testid="stExpander"] {
+            background: #f8f9fa;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            margin-bottom: 15px;
+        }
+        [data-testid="stExpander"] .st-emotion-cache-1qrv4ga {
+            font-weight: 600;
+            color: #2980b9;
+        }
+        [data-testid="stExpander"] .st-emotion-cache-1qrv4ga:hover {
+            color: #1a5276;
+        }
+        [data-testid="stMarkdownContainer"] ul {
+            padding-left: 20px;
+        }
+        [data-testid="stMarkdownContainer"] li {
+            margin-bottom: 8px;
+        }
+    </style>
     """, unsafe_allow_html=True)
+
+    
 
     
 
@@ -1252,10 +1438,11 @@ elif st.session_state.page == "Model Selection":
     col1, col2 = st.columns(2)
     with col1:
         if st.button("🔙 Back", use_container_width=True):
-            st.session_state.Page = 'Data Preprocessing'  # Or whatever your previous page is
+            navigate_to("Home")
     with col2:
         if st.button("🏠 Home", use_container_width=True):
-            st.session_state.Page = 'Home'
+            navigate_to("Home")
+    st.markdown("---")
 
     # Tabs for different functionalities
     tab0,tab1, tab2, tab3, tab4, tab5 = st.tabs(["Relationship Analysis","Model Training & Evaluation", "Cross Validation", "Hyperparameter Tuning","Tuned Decision Tree","Tuned Random Forest"])
@@ -1267,32 +1454,35 @@ elif st.session_state.page == "Model Selection":
     target_df = load_data(target_file)
 
     if features_file and target_file and features_df is not None and target_df is not None:
-        df_features = features_df
-        df_target = target_df
+      df_features = features_df
+      df_target = target_df
 
     # Select target column
-        target_column = st.sidebar.selectbox("Select target column:", df_target.columns)
+      target_column = st.sidebar.selectbox("Select target column:", df_target.columns)
 
-        if df_target[target_column].dtype == 'object' or df_target[target_column].nunique() <= 20:
-            
-            label_encoder = LabelEncoder()
-            y = label_encoder.fit_transform(df_target[target_column])
-            st.info(f"Target column '{target_column}' is categorical. Encoded it to numeric labels.")
-        else:
-            y = df_target[target_column]
+# Handle target encoding
+      if target_column:
+       if df_target[target_column].dtype == 'object' or df_target[target_column].nunique() <= 20:
+        label_encoder = LabelEncoder()
+        y = label_encoder.fit_transform(df_target[target_column])
+        st.info(f"Target column '{target_column}' is categorical. Encoded to numeric labels.")
+       else:
+        y = df_target[target_column]
 
-        if target_column:
-        # Select feature columns
-            selected_features = st.sidebar.multiselect(
-                "Select feature columns (remove unwanted features):",
-                df_features.select_dtypes(include=[np.number]).columns,
-                default=[col for col in df_features.select_dtypes(include=[np.number]).columns if col != target_column],
-            )
+    # Feature selection (now include both numeric and categorical)
+       selected_features = st.sidebar.multiselect(
+        "Select feature columns:",
+        df_features.columns,
+        default=[col for col in df_features.columns if col != target_column],
+     )
 
-            if selected_features:
-                X = df_features[selected_features]
-                y = df_target[target_column]
-    with tab0:
+       if selected_features:
+         X_raw = df_features[selected_features]
+
+        # Encode categorical features using one-hot encoding
+         X = pd.get_dummies(X_raw, drop_first=True)
+
+         with tab0:
             st.header("Relationship Analysis")
             
             # Check if single feature or multiple features
@@ -1362,7 +1552,7 @@ elif st.session_state.page == "Model Selection":
                 st.write("Multiple features selected - analyzing multivariate relationships")
                 
                 # Check correlation matrix
-                df_combined = pd.concat([X, y], axis=1)
+                df_combined = pd.concat([X, pd.Series(y, name=target_column)], axis=1)
                 fig, ax = plt.subplots(figsize=(10, 8))
                 sns.heatmap(df_combined.corr(), annot=True, cmap='coolwarm', ax=ax)
                 ax.set_title("Correlation Matrix")
@@ -1405,13 +1595,13 @@ elif st.session_state.page == "Model Selection":
                         st.success("Polynomial terms improve model performance")
 
     # Tab 1: Model Training & Evaluation
-    with tab1:
+         with tab1:
                     st.title("Automated Model Selection & Evaluation")
 
        
 
                     # Check if target needs encoding (categorical)
-                    if y.dtype == 'object' or y.nunique() <= 10:
+                    if y.dtype == 'object' or len(np.unique(y)) <= 10:
                         le = LabelEncoder()
                         y_encoded = le.fit_transform(y)
                         st.info("Categorical target detected - Applied Label Encoding.")
@@ -1422,7 +1612,7 @@ elif st.session_state.page == "Model Selection":
                         class_names = None
 
                     # Determine problem type
-                    unique_values = y.nunique()
+                    unique_values = len(np.unique(y))
                     is_categorical = y.dtype == "object" or unique_values <= 10
                     is_continuous = y.dtype in ["int64", "float64"] and unique_values > 10
 
@@ -1549,6 +1739,7 @@ elif st.session_state.page == "Model Selection":
                                                 })
                                         st.table(pd.DataFrame(confusion_breakdown))
 
+                                    # ROC AUC Curve for binary classification
                                     if unique_values == 2 and hasattr(model, "predict_proba"):
                                         y_pred_proba = model.predict_proba(X_test)[:, 1]
                                         fpr, tpr, thresholds = roc_curve(y_test, y_pred_proba)
@@ -1565,8 +1756,42 @@ elif st.session_state.page == "Model Selection":
                                         st.pyplot(fig)
 
                                         st.info(f"ROC AUC Score: {roc_auc:.2f}")
-                                    elif unique_values > 2:
-                                        st.warning("ROC Curve is only available for binary classification.")
+                                    elif unique_values > 2 and hasattr(model, "predict_proba"):
+                                        # Multi-class ROC AUC
+                                        st.subheader("Multi-class ROC AUC Curves")
+                                        y_test_bin = label_binarize(y_test, classes=np.unique(y_test))
+                                        n_classes = y_test_bin.shape[1]
+                                        
+                                        # Compute ROC curve and ROC area for each class
+                                        fpr = dict()
+                                        tpr = dict()
+                                        roc_auc = dict()
+                                        for i in range(n_classes):
+                                            fpr[i], tpr[i], _ = roc_curve(y_test_bin[:, i], model.predict_proba(X_test)[:, i])
+                                            roc_auc[i] = auc(fpr[i], tpr[i])
+
+                                        # Compute micro-average ROC curve and ROC area
+                                        fpr["micro"], tpr["micro"], _ = roc_curve(y_test_bin.ravel(), model.predict_proba(X_test).ravel())
+                                        roc_auc["micro"] = auc(fpr["micro"], tpr["micro"])
+
+                                        # Plot all ROC curves
+                                        fig, ax = plt.subplots()
+                                        colors = cycle(['blue', 'red', 'green', 'yellow', 'cyan', 'magenta'])
+                                        for i, color in zip(range(n_classes), colors):
+                                            ax.plot(fpr[i], tpr[i], color=color, lw=2,
+                                                    label='ROC curve of class {0} (area = {1:0.2f})'
+                                                    ''.format(i, roc_auc[i]))
+
+                                        ax.plot([0, 1], [0, 1], 'k--', lw=2)
+                                        ax.set_xlim([0.0, 1.0])
+                                        ax.set_ylim([0.0, 1.05])
+                                        ax.set_xlabel('False Positive Rate')
+                                        ax.set_ylabel('True Positive Rate')
+                                        ax.set_title('Multi-class ROC')
+                                        ax.legend(loc="lower right")
+                                        st.pyplot(fig)
+
+                                        st.info(f"Micro-average ROC AUC Score: {roc_auc['micro']:.2f}")
 
                                     st.subheader("Download Train and Test Dataset Results")
                                     if unique_values == 2:
@@ -1753,19 +1978,19 @@ elif st.session_state.page == "Model Selection":
                         st.success(f"Best Model: {best_model_name} with score: {best_score * 100:.2f}%")
 
     # Tab 2: Cross Validation
-    with tab2:
-     st.header("Cross Validation Results")
+         with tab2:
+          st.header("Cross Validation Results")
 
-     if 'X' in locals() and 'y' in locals() and 'target_type' in locals():
+          if 'X' in locals() and 'y' in locals() and 'target_type' in locals():
         # Number of CV splits
-        n_splits = st.number_input("Number of Stratified K-Folds (n_splits)", min_value=2, max_value=20, value=5, step=1)
+           n_splits = st.number_input("Number of Stratified K-Folds (n_splits)", min_value=2, max_value=20, value=5, step=1)
 
         # Test size for train_test_split
-        test_size = st.number_input("Test DataSet Size (Fraction)", min_value=0.1, max_value=0.9, value=0.3, step=0.05, format="%.2f")
+           test_size = st.number_input("Test DataSet Size (Fraction)", min_value=0.1, max_value=0.9, value=0.3, step=0.05, format="%.2f")
 
-        if len(X) != len(y):
+           if len(X) != len(y):
             st.error("Mismatch in number of rows between X and y!")
-        else:
+           else:
             # Train-test split
             X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=42)
 
@@ -1864,13 +2089,13 @@ elif st.session_state.page == "Model Selection":
                     st.pyplot(fig)
                 else:
                     st.warning("No valid cross-validation results to display. Check for errors in model execution.")
-     else:
-        st.warning("Please complete data upload and model selection in Tab 1 before running cross-validation.")
+          else:
+            st.warning("Please complete data upload and model selection in Tab 1 before running cross-validation.")
     # Tab 3: Hyperparameter Tuning
-    with tab3:
-        st.title("Hyperparameter Tuning")
+         with tab3:
+          st.title("Hyperparameter Tuning")
 
-        if 'X' in locals() and 'y' in locals() and 'best_model_name' in locals():
+          if 'X' in locals() and 'y' in locals() and 'best_model_name' in locals():
             st.info(f"Best Model from Cross-Validation: {best_model_name}")
 
         # Define hyperparameter grids
@@ -2083,10 +2308,10 @@ elif st.session_state.page == "Model Selection":
                 with open(r"Models/best_overalltuned_model.pkl", "rb") as f:
                     st.download_button("📥 Download Best Tuned Model", f, file_name="best_overalltuned_model.pkl")
 
-        else:
+          else:
             st.warning("Please complete data upload and cross-validation in Tab 2 before tuning.")
 
-    with tab4:
+         with tab4:
                 x_train, x_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
 
                 dt_score = []
@@ -2107,26 +2332,27 @@ elif st.session_state.page == "Model Selection":
                 ax1.set_title("DT Classifier for different max_features")
                 st.pyplot(fig1)
 
-    with tab5:
+         with tab5:
                 x_train, x_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
 
-                estimator = [10, 100, 200, 500, 1000]
                 rf_score = []
-                for i in estimator:
-                    rf_class = RandomForestClassifier(n_estimators=i)
-                    rf_class.fit(x_train, y_train)
-                    rf_score.append(rf_class.score(x_test, y_test))
+                for i in range(1, len(X.columns) + 1):
+                    rf_classi = RandomForestClassifier(max_features=i)
+                    rf_classi.fit(x_train, y_train)
+                    rf_score.append(rf_classi.score(x_test, y_test))
 
                 fig2, ax2 = plt.subplots()
-                ax2.bar(range(len(estimator)), rf_score, tick_label=[str(e) for e in estimator])
+                ax2.plot([i for i in range(1, len(X.columns) + 1)], rf_score, marker='o')
 
-                for i in range(len(estimator)):
-                    ax2.text(i, rf_score[i], round(rf_score[i], 2), ha='center')
+                for i in range(1, len(X.columns) + 1):
+                    ax2.text(i, rf_score[i - 1], round(rf_score[i - 1], 2), ha='center')
 
-                ax2.set_xlabel("Number of Estimators")
-                ax2.set_ylabel("Scores")
-                ax2.set_title("Random Forest Classifier")
+                ax2.set_xticks([i for i in range(1, len(X.columns) + 1)])
+                ax2.set_xlabel("max feature")
+                ax2.set_ylabel("score")
+                ax2.set_title("RF Classifier for different max_features")
                 st.pyplot(fig2)
+
 
 elif st.session_state.page == "FeatureSelection":
     st.markdown("<div class='eda-title'>Feature Selection</div>", unsafe_allow_html=True)
@@ -2139,7 +2365,7 @@ elif st.session_state.page == "FeatureSelection":
             navigate_to("Home")
     st.markdown("---")
 
-    tab00,tab0,tab1 ,tab2, tab3 , tab4, tab5= st.tabs(['Filer,Wrapper method Feature Selecetion','Feature Selection','Mutual Info Plot','Mind Map','Variance Check', 'Correlation Check', 'RFE'])
+    tab3 , tab4, tab5,tab00,tab0,tab1 ,tab2= st.tabs(['Variance Check', 'Correlation Check', 'RFE','Filer,Wrapper method Feature Selecetion','Feature Selection','Mutual Info Plot','Mind Map'])
 
     if 'df' in st.session_state and st.session_state.df is not None:
         df = st.session_state.df
@@ -2265,17 +2491,17 @@ elif st.session_state.page == "FeatureSelection":
               df = pd.read_csv(uploaded_file)
               st.write("Data Preview", df.head())
 
-             y1_col = st.selectbox("Select Target (y)", df.columns, key="target_column")
+              y1_col = st.selectbox("Select Target (y)", df.columns, key="target_column")
 
-             if y1_col:
-              x1_cols = st.multiselect(
+              if y1_col:
+               x1_cols = st.multiselect(
                 "Select Feature Column [x]", 
                 [col for col in df.columns if col != y1_col],
                 default=[col for col in df.columns if col != y1_col],
                 key="feature_column"
-            )
+             )
 
-             if x1_cols:
+              if x1_cols:
                 # Handle categorical features
                 categorical_cols = [col for col in x1_cols if df[col].dtype == 'object' or df[col].nunique() < 10]
                 X = pd.get_dummies(df[x1_cols], columns=categorical_cols, drop_first=True)
