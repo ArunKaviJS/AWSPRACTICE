@@ -18,7 +18,7 @@ from scipy.stats.mstats import winsorize
 import category_encoders as ce
 from sklearn.feature_selection import VarianceThreshold
 from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_score, GridSearchCV, RandomizedSearchCV,KFold, learning_curve, validation_curve
-from lime.lime_tabular import LimeTabularExplainer
+
 from sklearn.naive_bayes import GaussianNB
 from sklearn.svm import SVC
 from xgboost import XGBClassifier
