@@ -4,7 +4,7 @@ from PIL import Image
 from tensorflow.keras.models import load_model
 
 # Load the trained model
-model = load_model('..\Models\my_model_cnn_cifar10.h5')
+model = load_model('my_model_cnn_cifar10.h5')
 
 # CIFAR-10 Labels
 labels = ['airplane', 'automobile', 'bird', 'cat', 'deer',
